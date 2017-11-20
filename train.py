@@ -78,7 +78,7 @@ def get_model(encode_seq, decode_seq, is_train, reuse):
         net_rnn = tensorlayer.layers.Seq2Seq(
             net_encode,
             net_decode,
-            cell_fn=tensorflow.nn.rnn_cell.BasicLSTMCell,
+            cell_fn=tensorflow.contrib.rnn.BasicLSTMCell,
             n_hidden=embedding_size,
             initializer=tensorflow.random_uniform_initializer(-0.1, 0.1),
             encode_sequence_length=tensorlayer.layers.retrieve_seq_length_op2(encode_seq),
@@ -128,22 +128,17 @@ if __name__ == '__main__':
     target_mask = tensorflow.placeholder(tensorflow.int64, [batch_size, None], 'target_mask')
     net_out, _ = get_model(encode_seqs, decode_seqs, True, False)
 
-    encode_seqs2 = tensorflow.placeholder(tensorflow.int64, [1, None], 'encode_seqs')
-    decode_seqs2 = tensorflow.placeholder(tensorflow.int64, [1, None], 'decode_seqs')
-    net, net_rnn = get_model(encode_seqs2, decode_seqs2, False, True)
-    y = tensorflow.nn.softmax(net.outputs)
-
-    loss = tensorlayer.cost.cross_entropy_seq_with_mask(net_out.outputs, target_seqs, target_mask)
+    loss = tensorlayer.cost.cross_entropy_seq_with_mask(net_out.outputs, target_seqs, target_mask, False, 'cost')
     net_out.print_params(False)
 
-    train_op = tensorflow.train.AdadeltaOptimizer(learning_rate).minimize(loss)
+    train_op = tensorflow.train.AdamOptimizer(learning_rate).minimize(loss)
 
     session = tensorflow.Session(config=tensorflow.ConfigProto(allow_soft_placement=True, log_device_placement=False))
     tensorlayer.layers.initialize_global_variables(session)
 
     checkpoint, n_checkpoint = get_checkpoint()
     if checkpoint is not None:
-        tensorlayer.files.load_and_assign_npz(session, 'checkpoints/' + checkpoint, net)
+        tensorlayer.files.load_and_assign_npz(session, 'checkpoints/' + checkpoint, net_out)
 
     n_step = int(len(train_x) / batch_size)
     for epoch in range(n_checkpoint, n_epoch):
@@ -169,12 +164,12 @@ if __name__ == '__main__':
                 target_mask: _target_mask
             })
 
-            sys.stdout.write('\rEpoch {}/{}, step {}/{}, loss {:.2f}, time {:.2f}'.format(epoch + 1, n_epoch, n_iter, n_step, err,
+            sys.stdout.write('\rEpoch {}/{}, step {}/{}, loss {}, time {:.5f}'.format(epoch + 1, n_epoch, n_iter, n_step, err,
                                                                                   time.time() - step_time))
             sys.stdout.flush()
             total_error += err
             n_iter += 1
         print()
-        print('Epoch {}/{}, average loss {:2f}, time {:.2f}'.format(epoch + 1, n_epoch, total_error/n_iter,
+        print('Epoch {}/{}, average loss {}, time {:.5f}'.format(epoch + 1, n_epoch, total_error/n_iter,
                                                                     time.time() - e_time))
-        tensorlayer.files.save_npz(net.all_params, 'checkpoints/checkpoint_{}.npz'.format(epoch + 1), session)
+        tensorlayer.files.save_npz(net_out.all_params, 'checkpoints/checkpoint_{}.npz'.format(epoch + 1), session)
