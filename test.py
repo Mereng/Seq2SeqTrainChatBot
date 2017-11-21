@@ -67,10 +67,9 @@ tensorlayer.layers.initialize_global_variables(session)
 tensorlayer.files.load_and_assign_npz(session, 'checkpoints/model.npz', net)
 
 
-
 while True:
     msg = input('> ')
-    idxs = [word2idx[word] for word in msg.split(' ')]
+    idxs = [word2idx.get(word, word2idx['unk']) for word in msg.split(' ')]
     state = session.run(net_rnn.final_state_encode, {
         encode_seqs: [idxs]
     })
